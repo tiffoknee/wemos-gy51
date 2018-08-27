@@ -1,5 +1,3 @@
-#include <Arduino.h>
-#include <SPI.h>
 /* ============================================
 I2Cdev device library code is placed under the MIT license
 Copyright (c) 2012 Jeff Rowberg
@@ -50,14 +48,12 @@ THE SOFTWARE.
 #include <DNSServer.h>
 #include <WiFiClient.h>
 #include <WiFiUdp.h>
-//#include <ArdOSC.h>
 #include <OSCMessage.h>
 #include <WiFiManager.h>         //https://github.com/tzapu/WiFiManager
 
 // I2Cdev and MPU6050 must be installed as libraries, or else the .cpp/.h files
 // for both classes must be in the include path of your project
 #include "I2Cdev.h"
-
 
 #include "MPU6050_6Axis_MotionApps20.h"
 //#include "MPU6050.h" // not necessary if using MotionApps include file
@@ -142,7 +138,7 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 const char DEVICE_NAME[] = "mpu6050";
 
 WiFiUDP Udp;                                // A UDP instance to let us send and receive packets over UDP
-const IPAddress outIp(192, 168, 1, 3);     // remote IP to receive OSC
+const IPAddress outIp(192, 168, 1, 11);     // remote IP to receive OSC
 const unsigned int outPort = 9999;          // remote port to receive OSC
 
 // ================================================================
@@ -220,7 +216,7 @@ void setup(void)
   //Local intialization. Once its business is done, there is no need to keep it around
   WiFiManager wifiManager;
   //reset saved settings
-//wifiManager.resetSettings();
+  //wifiManager.resetSettings();
 
   //fetches ssid and pass from eeprom and tries to connect
   //if it does not connect it starts an access point with the specified name
