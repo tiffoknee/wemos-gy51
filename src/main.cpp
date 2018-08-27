@@ -95,6 +95,12 @@ VectorInt16 aa;         // [x, y, z]            accel sensor measurements
 VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
 VectorInt16 aaWorld;    // [x, y, z]            world-frame accel sensor measurements
 VectorFloat gravity;    // [x, y, z]            gravity vector
+float yaw;
+float pitch;
+float roll;
+
+#define OUTPUT_READABLE_YAWPITCHROLL
+
 #ifdef OUTPUT_READABLE_EULER
 float euler[3];         // [psi, theta, phi]    Euler angle container
 #endif
@@ -105,27 +111,14 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 // uncomment "OUTPUT_READABLE_QUATERNION" if you want to see the actual
 // quaternion components in a [w, x, y, z] format (not best for parsing
 // on a remote host such as Processing or something though)
-//#define OUTPUT_READABLE_QUATERNION
+// #define OUTPUT_READABLE_QUATERNION
 
-// uncomment "OUTPUT_READABLE_EULER" if you want to see Euler angles
-// (in degrees) calculated from the quaternions coming from the FIFO.
-// Note that Euler angles suffer from gimbal lock (for more info, see
-// http://en.wikipedia.org/wiki/Gimbal_lock)
-//#define OUTPUT_READABLE_EULER
 
-// uncomment "OUTPUT_READABLE_YAWPITCHROLL" if you want to see the yaw/
-// pitch/roll angles (in degrees) calculated from the quaternions coming
-// from the FIFO. Note this also requires gravity vector calculations.
-// Also note that yaw/pitch/roll angles suffer from gimbal lock (for
-// more info, see: http://en.wikipedia.org/wiki/Gimbal_lock)
-//#define OUTPUT_READABLE_YAWPITCHROLL
+// TIFF TESTS
+ #define OUTPUT_CONTROLS
 
-// uncomment "OUTPUT_READABLE_REALACCEL" if you want to see acceleration
-// components with gravity removed. This acceleration reference frame is
-// not compensated for orientation, so +X is always +X according to the
-// sensor, just without the effects of gravity. If you want acceleration
-// compensated for orientation, us OUTPUT_READABLE_WORLDACCEL instead.
-//#define OUTPUT_READABLE_REALACCEL
+#define OUTPUT_TEAPOT_OSC
+
 
 // uncomment "OUTPUT_READABLE_WORLDACCEL" if you want to see acceleration
 // components with gravity removed and adjusted for the world frame of
@@ -133,9 +126,6 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 // is present in this case). Could be quite handy in some cases.
 //#define OUTPUT_READABLE_WORLDACCEL
 
-// uncomment "OUTPUT_TEAPOT_OSC" if you want output that matches the
-// format used for the InvenSense teapot demo
-#define OUTPUT_TEAPOT_OSC
 
 #define INTERRUPT_PIN 15 // use pin 15 on ESP8266
 
@@ -181,7 +171,7 @@ void mpu_setup()
   mpu.setXGyroOffset(220);
   mpu.setYGyroOffset(76);
   mpu.setZGyroOffset(-85);
-  mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
+  mpu.setZAccelOffset(1688); // 1688 factory default for my test chip
 
   // make sure it worked (returns 0 if so)
   if (devStatus == 0) {
@@ -231,6 +221,7 @@ void setup(void)
   Serial.println(WiFi.localIP());
 
   mpu_setup();
+
 }
 
 void mpu_loop()
@@ -279,6 +270,67 @@ void mpu_loop()
     Serial.println(q.z);
 #endif
 
+#ifdef OUTPUT_CONTROLS
+    // debugging steering
+    mpu.dmpGetQuaternion(&q, fifoBuffer);
+    mpu.dmpGetAccel(&aa, fifoBuffer);
+    mpu.dmpGetGravity(&gravity, &q);
+    // mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
+    // mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
+    // Serial.print("aworld\t");
+    // Serial.print(aaWorld.x);
+    // Serial.print("\t");
+    // Serial.print(aaWorld.y);
+    // Serial.print("\t");
+    // Serial.println(aaWorld.z);
+
+    mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+
+    yaw = (ypr[0] * 180/M_PI);
+    pitch = (ypr[1] * 180/M_PI);
+    roll = (ypr[2] * 180/M_PI);
+
+    Serial.print("ypr\t");
+    Serial.print(yaw);
+    Serial.print("\t");
+    Serial.print(pitch);
+    Serial.print("\t");
+    Serial.println(roll);
+
+
+
+    if (roll <= -18) {
+      Serial.print("LEFT\t");
+    }else{
+      Serial.print("---\t");
+    }
+    if (roll > -18 && roll < 18) {
+      Serial.print("CENTER\t");
+    }else{
+      Serial.print("---\t");
+    }
+    if (roll >= 18) {
+      Serial.print("RIGHT\t");
+    }else{
+      Serial.print("---\t");
+    }
+
+    if (pitch > -16) {
+      Serial.print("FIRE\t");
+    }else{
+      Serial.print("---\t");
+    }
+
+    if (pitch <= -35) {
+      Serial.print("NITRO!\t");
+    }else{
+      Serial.print("---\t");
+    }
+#endif
+
+
+
+
 #ifdef OUTPUT_TEAPOT_OSC
 #ifndef OUTPUT_READABLE_QUATERNION
     // display quaternion values in easy matrix form: w x y z
@@ -290,6 +342,7 @@ void mpu_loop()
     msg.add((float)q.x);
     msg.add((float)q.y);
     msg.add((float)q.z);
+
 
     Udp.beginPacket(outIp, outPort);
     msg.send(Udp);
