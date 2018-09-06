@@ -42,6 +42,7 @@ THE SOFTWARE.
 
 */
 
+/* WIRELESS
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #else
@@ -53,12 +54,11 @@ THE SOFTWARE.
 //#include <ArdOSC.h>
 #include <OSCMessage.h>
 #include <WiFiManager.h>         //https://github.com/tzapu/WiFiManager
+*/
 
 // I2Cdev and MPU6050 must be installed as libraries, or else the .cpp/.h files
 // for both classes must be in the include path of your project
 #include "I2Cdev.h"
-
-
 #include "MPU6050_6Axis_MotionApps20.h"
 //#include "MPU6050.h" // not necessary if using MotionApps include file
 
@@ -99,6 +99,18 @@ float yaw;
 float pitch;
 float roll;
 
+/* output pins  */
+
+#define nitroPin D0
+#define leftPin D5
+#define rightPin D6
+#define firePin D7
+
+// const int nitroPin = 4;
+// const int leftPin = 5;
+// const int rightPin = 6;
+// const int firePin = 7;
+
 #define OUTPUT_READABLE_YAWPITCHROLL
 
 #ifdef OUTPUT_READABLE_EULER
@@ -115,9 +127,9 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 
 
 // TIFF TESTS
- #define OUTPUT_CONTROLS
+#define OUTPUT_CONTROLS
 
-#define OUTPUT_TEAPOT_OSC
+//#define OUTPUT_TEAPOT_OSC
 
 
 // uncomment "OUTPUT_READABLE_WORLDACCEL" if you want to see acceleration
@@ -131,9 +143,11 @@ float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gra
 
 const char DEVICE_NAME[] = "mpu6050";
 
+/* WIRELESS
 WiFiUDP Udp;                                // A UDP instance to let us send and receive packets over UDP
 const IPAddress outIp(192, 168, 1, 3);     // remote IP to receive OSC
 const unsigned int outPort = 9999;          // remote port to receive OSC
+*/
 
 // ================================================================
 // ===               INTERRUPT DETECTION ROUTINE                ===
@@ -206,19 +220,28 @@ void setup(void)
   Serial.begin(115200);
   Serial.println(F("\nOrientation Sensor OSC output")); Serial.println();
 
+  pinMode(leftPin, OUTPUT);
+  pinMode(rightPin, OUTPUT);
+  pinMode(nitroPin, OUTPUT);
+  pinMode(firePin, OUTPUT);
+  digitalWrite(leftPin, HIGH);
+  digitalWrite(rightPin, HIGH);
+  digitalWrite(nitroPin, HIGH);
+  digitalWrite(firePin, HIGH);
+
   //WiFiManager
   //Local intialization. Once its business is done, there is no need to keep it around
-  WiFiManager wifiManager;
+//  WiFiManager wifiManager;
   //reset saved settings
 //wifiManager.resetSettings();
 
   //fetches ssid and pass from eeprom and tries to connect
   //if it does not connect it starts an access point with the specified name
   //and goes into a blocking loop awaiting configuration
-  wifiManager.autoConnect(DEVICE_NAME);
-
-  Serial.print(F("WiFi connected! IP address: "));
-  Serial.println(WiFi.localIP());
+  // wifiManager.autoConnect(DEVICE_NAME);
+  //
+  // Serial.print(F("WiFi connected! IP address: "));
+  // Serial.println(WiFi.localIP());
 
   mpu_setup();
 
@@ -299,32 +322,40 @@ void mpu_loop()
 
 
 
-    if (roll <= -18) {
+    if (roll <= -11) {
       Serial.print("LEFT\t");
+      digitalWrite(leftPin, LOW);
     }else{
       Serial.print("---\t");
+      digitalWrite(leftPin, HIGH);
     }
-    if (roll > -18 && roll < 18) {
+    if (roll > -11 && roll < 11) {
       Serial.print("CENTER\t");
     }else{
       Serial.print("---\t");
     }
     if (roll >= 18) {
       Serial.print("RIGHT\t");
+      digitalWrite(rightPin, LOW);
     }else{
       Serial.print("---\t");
+      digitalWrite(rightPin, HIGH);
     }
 
-    if (pitch > -16) {
+    if (pitch > 42) {
       Serial.print("FIRE\t");
+      digitalWrite(firePin, LOW);
     }else{
       Serial.print("---\t");
+      digitalWrite(firePin, HIGH);
     }
 
-    if (pitch <= -35) {
+    if (pitch <= 30) {
       Serial.print("NITRO!\t");
+      digitalWrite(nitroPin, LOW);
     }else{
       Serial.print("---\t");
+      digitalWrite(nitroPin, HIGH);
     }
 #endif
 
@@ -416,12 +447,12 @@ void mpu_loop()
 /**************************************************************************/
 void loop(void)
 {
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println();
-    Serial.println("*** Disconnected from AP so rebooting ***");
-    Serial.println();
-    ESP.reset();
-  }
+  // if (WiFi.status() != WL_CONNECTED) {
+  //   Serial.println();
+  //   Serial.println("*** Disconnected from AP so rebooting ***");
+  //   Serial.println();
+  //   ESP.reset();
+  // }
 
   mpu_loop();
 }
