@@ -24,38 +24,6 @@ THE SOFTWARE.
 ===============================================
 */
 
-/* This driver reads quaternion data from the MPU6060 and sends
-   Open Sound Control messages.
-
-  GY-521  NodeMCU
-  MPU6050 devkit 1.0
-  board   Lolin         Description
-  ======= ==========    ====================================================
-  VCC     VU (5V USB)   Not available on all boards so use 3.3V if needed.
-  GND     G             Ground
-  SCL     D1 (GPIO05)   I2C clock
-  SDA     D2 (GPIO04)   I2C data
-  XDA     not connected
-  XCL     not connected
-  AD0     not connected
-  INT     D8 (GPIO15)   Interrupt pin
-
-*/
-
-/* WIRELESS
-#if defined(ESP8266)
-#include <ESP8266WiFi.h>
-#else
-#include <WiFi.h>
-#endif
-#include <DNSServer.h>
-#include <WiFiClient.h>
-#include <WiFiUdp.h>
-//#include <ArdOSC.h>
-#include <OSCMessage.h>
-#include <WiFiManager.h>         //https://github.com/tzapu/WiFiManager
-*/
-
 // I2Cdev and MPU6050 must be installed as libraries, or else the .cpp/.h files
 // for both classes must be in the include path of your project
 #include "I2Cdev.h"
@@ -98,6 +66,7 @@ VectorFloat gravity;    // [x, y, z]            gravity vector
 float yaw;
 float pitch;
 float roll;
+float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
 /* output pins  */
 
@@ -106,48 +75,9 @@ float roll;
 #define rightPin D6
 #define firePin D7
 
-// const int nitroPin = 4;
-// const int leftPin = 5;
-// const int rightPin = 6;
-// const int firePin = 7;
-
-#define OUTPUT_READABLE_YAWPITCHROLL
-
-#ifdef OUTPUT_READABLE_EULER
-float euler[3];         // [psi, theta, phi]    Euler angle container
-#endif
-#ifdef OUTPUT_READABLE_YAWPITCHROLL
-float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
-#endif
-
-// uncomment "OUTPUT_READABLE_QUATERNION" if you want to see the actual
-// quaternion components in a [w, x, y, z] format (not best for parsing
-// on a remote host such as Processing or something though)
-// #define OUTPUT_READABLE_QUATERNION
-
-
-// TIFF TESTS
-#define OUTPUT_CONTROLS
-
-//#define OUTPUT_TEAPOT_OSC
-
-
-// uncomment "OUTPUT_READABLE_WORLDACCEL" if you want to see acceleration
-// components with gravity removed and adjusted for the world frame of
-// reference (yaw is relative to initial orientation, since no magnetometer
-// is present in this case). Could be quite handy in some cases.
-//#define OUTPUT_READABLE_WORLDACCEL
-
-
 #define INTERRUPT_PIN 15 // use pin 15 on ESP8266
 
 const char DEVICE_NAME[] = "mpu6050";
-
-/* WIRELESS
-WiFiUDP Udp;                                // A UDP instance to let us send and receive packets over UDP
-const IPAddress outIp(192, 168, 1, 3);     // remote IP to receive OSC
-const unsigned int outPort = 9999;          // remote port to receive OSC
-*/
 
 // ================================================================
 // ===               INTERRUPT DETECTION ROUTINE                ===
@@ -229,20 +159,6 @@ void setup(void)
   digitalWrite(nitroPin, HIGH);
   digitalWrite(firePin, HIGH);
 
-  //WiFiManager
-  //Local intialization. Once its business is done, there is no need to keep it around
-//  WiFiManager wifiManager;
-  //reset saved settings
-//wifiManager.resetSettings();
-
-  //fetches ssid and pass from eeprom and tries to connect
-  //if it does not connect it starts an access point with the specified name
-  //and goes into a blocking loop awaiting configuration
-  // wifiManager.autoConnect(DEVICE_NAME);
-  //
-  // Serial.print(F("WiFi connected! IP address: "));
-  // Serial.println(WiFi.localIP());
-
   mpu_setup();
 
 }
@@ -280,162 +196,6 @@ void mpu_loop()
     // (this lets us immediately read more without waiting for an interrupt)
     fifoCount -= packetSize;
 
-#ifdef OUTPUT_READABLE_QUATERNION
-    // display quaternion values in easy matrix form: w x y z
-    mpu.dmpGetQuaternion(&q, fifoBuffer);
-    Serial.print("quat\t");
-    Serial.print(q.w);
-    Serial.print("\t");
-    Serial.print(q.x);
-    Serial.print("\t");
-    Serial.print(q.y);
-    Serial.print("\t");
-    Serial.println(q.z);
-#endif
-
-#ifdef OUTPUT_CONTROLS
-    // debugging steering
-    mpu.dmpGetQuaternion(&q, fifoBuffer);
-    mpu.dmpGetAccel(&aa, fifoBuffer);
-    mpu.dmpGetGravity(&gravity, &q);
-    // mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-    // mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
-    // Serial.print("aworld\t");
-    // Serial.print(aaWorld.x);
-    // Serial.print("\t");
-    // Serial.print(aaWorld.y);
-    // Serial.print("\t");
-    // Serial.println(aaWorld.z);
-
-    mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-
-    yaw = (ypr[0] * 180/M_PI);
-    pitch = (ypr[1] * 180/M_PI);
-    roll = (ypr[2] * 180/M_PI);
-
-    Serial.print("ypr\t");
-    Serial.print(yaw);
-    Serial.print("\t");
-    Serial.print(pitch);
-    Serial.print("\t");
-    Serial.println(roll);
-
-
-
-    if (roll <= -11) {
-      Serial.print("LEFT\t");
-      digitalWrite(leftPin, LOW);
-    }else{
-      Serial.print("---\t");
-      digitalWrite(leftPin, HIGH);
-    }
-    if (roll > -11 && roll < 11) {
-      Serial.print("CENTER\t");
-    }else{
-      Serial.print("---\t");
-    }
-    if (roll >= 18) {
-      Serial.print("RIGHT\t");
-      digitalWrite(rightPin, LOW);
-    }else{
-      Serial.print("---\t");
-      digitalWrite(rightPin, HIGH);
-    }
-
-    if (pitch > 42) {
-      Serial.print("FIRE\t");
-      digitalWrite(firePin, LOW);
-    }else{
-      Serial.print("---\t");
-      digitalWrite(firePin, HIGH);
-    }
-
-    if (pitch <= 30) {
-      Serial.print("NITRO!\t");
-      digitalWrite(nitroPin, LOW);
-    }else{
-      Serial.print("---\t");
-      digitalWrite(nitroPin, HIGH);
-    }
-#endif
-
-
-
-
-#ifdef OUTPUT_TEAPOT_OSC
-#ifndef OUTPUT_READABLE_QUATERNION
-    // display quaternion values in easy matrix form: w x y z
-    mpu.dmpGetQuaternion(&q, fifoBuffer);
-#endif
-    // Send OSC message
-    OSCMessage msg("/imuquat");
-    msg.add((float)q.w);
-    msg.add((float)q.x);
-    msg.add((float)q.y);
-    msg.add((float)q.z);
-
-
-    Udp.beginPacket(outIp, outPort);
-    msg.send(Udp);
-    Udp.endPacket();
-
-    msg.empty();
-#endif
-
-#ifdef OUTPUT_READABLE_EULER
-    // display Euler angles in degrees
-    mpu.dmpGetQuaternion(&q, fifoBuffer);
-    mpu.dmpGetEuler(euler, &q);
-    Serial.print("euler\t");
-    Serial.print(euler[0] * 180/M_PI);
-    Serial.print("\t");
-    Serial.print(euler[1] * 180/M_PI);
-    Serial.print("\t");
-    Serial.println(euler[2] * 180/M_PI);
-#endif
-
-#ifdef OUTPUT_READABLE_YAWPITCHROLL
-    // display Euler angles in degrees
-    mpu.dmpGetQuaternion(&q, fifoBuffer);
-    mpu.dmpGetGravity(&gravity, &q);
-    mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-    Serial.print("ypr\t");
-    Serial.print(ypr[0] * 180/M_PI);
-    Serial.print("\t");
-    Serial.print(ypr[1] * 180/M_PI);
-    Serial.print("\t");
-    Serial.println(ypr[2] * 180/M_PI);
-#endif
-
-#ifdef OUTPUT_READABLE_REALACCEL
-    // display real acceleration, adjusted to remove gravity
-    mpu.dmpGetQuaternion(&q, fifoBuffer);
-    mpu.dmpGetAccel(&aa, fifoBuffer);
-    mpu.dmpGetGravity(&gravity, &q);
-    mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-    Serial.print("areal\t");
-    Serial.print(aaReal.x);
-    Serial.print("\t");
-    Serial.print(aaReal.y);
-    Serial.print("\t");
-    Serial.println(aaReal.z);
-#endif
-
-#ifdef OUTPUT_READABLE_WORLDACCEL
-    // display initial world-frame acceleration, adjusted to remove gravity
-    // and rotated based on known orientation from quaternion
-    mpu.dmpGetQuaternion(&q, fifoBuffer);
-    mpu.dmpGetAccel(&aa, fifoBuffer);
-    mpu.dmpGetGravity(&gravity, &q);
-    mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-    mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
-    Serial.print("aworld\t");
-    Serial.print(aaWorld.x);
-    Serial.print("\t");
-    Serial.print(aaWorld.y);
-    Serial.print("\t");
-    Serial.println(aaWorld.z);
-#endif
   }
 }
 
@@ -447,12 +207,58 @@ void mpu_loop()
 /**************************************************************************/
 void loop(void)
 {
-  // if (WiFi.status() != WL_CONNECTED) {
-  //   Serial.println();
-  //   Serial.println("*** Disconnected from AP so rebooting ***");
-  //   Serial.println();
-  //   ESP.reset();
-  // }
-
   mpu_loop();
+
+  mpu.dmpGetQuaternion(&q, fifoBuffer);
+  mpu.dmpGetAccel(&aa, fifoBuffer);
+  mpu.dmpGetGravity(&gravity, &q);
+  mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+
+  yaw = (ypr[0] * 180/M_PI);
+  pitch = (ypr[1] * 180/M_PI);
+  roll = (ypr[2] * 180/M_PI);
+
+  Serial.print("ypr\t");
+  Serial.print(yaw);
+  Serial.print("\t");
+  Serial.print(pitch);
+  Serial.print("\t");
+  Serial.println(roll);
+
+  if (roll <= -11) {
+    Serial.print("LEFT\t");
+    digitalWrite(leftPin, LOW);
+  }else{
+    Serial.print("---\t");
+    digitalWrite(leftPin, HIGH);
+  }
+  if (roll > -11 && roll < 11) {
+    Serial.print("CENTER\t");
+  }else{
+    Serial.print("---\t");
+  }
+  if (roll >= 18) {
+    Serial.print("RIGHT\t");
+    digitalWrite(rightPin, LOW);
+  }else{
+    Serial.print("---\t");
+    digitalWrite(rightPin, HIGH);
+  }
+
+  if (pitch > 42) {
+    Serial.print("FIRE\t");
+    digitalWrite(firePin, LOW);
+  }else{
+    Serial.print("---\t");
+    digitalWrite(firePin, HIGH);
+  }
+
+  if (pitch <= 30) {
+    Serial.print("NITRO!\t");
+    digitalWrite(nitroPin, LOW);
+  }else{
+    Serial.print("---\t");
+    digitalWrite(nitroPin, HIGH);
+  }
+
 }
